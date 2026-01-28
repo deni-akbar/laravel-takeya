@@ -32,8 +32,16 @@ class Post extends Model
         return $this->published_at && $this->published_at > now();
     }
 
-    public function isPublished()
+    public function scopeActive($query)
     {
-        return $this->published_at && $this->published_at <= now();
+        return $query
+            ->whereNotNull('published_at')
+            ->where('published_at', '<=', now());
+    }
+
+    public function isPublished(): bool
+    {
+        return $this->published_at !== null
+            && $this->published_at <= now();
     }
 }
