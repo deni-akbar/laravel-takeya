@@ -3,54 +3,55 @@
 namespace App\Http\Controllers;
 
 use App\Models\Post;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Requests\Posts\StorePostRequest;
+use App\Http\Requests\Posts\UpdatePostRequest;
+use App\Http\Resources\PostResource;
 
 class PostController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('auth')->except(['index', 'show']);
+    }
+
     // GET /posts
     public function index()
     {
         $posts = Post::with('user')
-            ->whereNotNull('published_at')
-            ->where('published_at', '<=', now())
+            ->active()
             ->paginate(20);
 
-        return response()->json($posts);
+        return PostResource::collection($posts);
     }
 
     // GET /posts/create
     public function create()
     {
-        return "posts.create";
+        return response()->json('posts.create');
     }
 
     // POST /posts
-    public function store(Request $request)
+    public function store(StorePostRequest $request)
     {
-        $data = $request->validate([
-            'title' => 'required|string|max:255',
-            'content' => 'required|string',
-            'published_at' => 'nullable|date',
+        $post = Post::create([
+            ...$request->validated(),
+            'user_id' => Auth::id(),
         ]);
 
-        $data['user_id'] = Auth::id();
-
-        $post = Post::create($data);
-
-        return response()->json($post, 201);
+        return new PostResource($post);
     }
 
     // GET /posts/{post}
     public function show(Post $post)
     {
-        if (!$post->isPublished()) {
+        if (! $post->isPublished()) {
             abort(404);
         }
 
         $post->load('user');
 
-        return response()->json($post);
+        return new PostResource($post);
     }
 
     // GET /posts/{post}/edit
@@ -58,23 +59,17 @@ class PostController extends Controller
     {
         $this->authorize('update', $post);
 
-        return "posts.edit";
+        return response()->json('posts.edit');
     }
 
     // PUT/PATCH /posts/{post}
-    public function update(Request $request, Post $post)
+    public function update(UpdatePostRequest $request, Post $post)
     {
         $this->authorize('update', $post);
 
-        $data = $request->validate([
-            'title' => 'sometimes|required|string|max:255',
-            'content' => 'sometimes|required|string',
-            'published_at' => 'nullable|date',
-        ]);
+        $post->update($request->validated());
 
-        $post->update($data);
-
-        return response()->json($post);
+        return new PostResource($post);
     }
 
     // DELETE /posts/{post}
@@ -84,6 +79,8 @@ class PostController extends Controller
 
         $post->delete();
 
-        return response()->json(['message' => 'Deleted'], 200);
+        return response()->json([
+            'message' => 'Deleted',
+        ], 200);
     }
 }
